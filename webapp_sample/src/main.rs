@@ -1,3 +1,5 @@
+
+extern crate dotenv;
 extern crate env_logger;
 extern crate handlebars;
 #[macro_use]
@@ -18,6 +20,8 @@ mod db;
 mod models;
 mod schema;
 
+use dotenv::dotenv;
+use std::env;
 use handlebars::{Handlebars, to_json};
 use std::sync::Arc;
 use serde_json::value::{Map};
@@ -26,6 +30,7 @@ use actix::prelude::*;
 use actix_web::{server, fs, App, Form, HttpRequest, HttpResponse, FutureResponse, AsyncResponder};
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::Logger;
+use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
 use futures::Future;
 
 use diesel::prelude::*;
@@ -63,7 +68,25 @@ impl Context {
 }
 
 fn handle_index(req: HttpRequest<Context>) -> HttpResponse {
-    match req.state().templates.render("index", &json!({})) {
+    let counter_key = "counter";
+    
+    let counter =  match req.session().get::<i32>(counter_key) {
+        Ok(Some(count)) => {
+            if count >= 9 {
+                1
+            } else {
+                count + 1
+            }
+        },
+        _ => 1,
+    };
+
+    req.session().set(counter_key, counter);
+
+    let mut data = Map::new();
+    data.insert("count".to_string(), to_json(&counter));
+   
+    match req.state().templates.render("index", &data) {
         Ok(body) => HttpResponse::Ok().body(body),
         Err(_)   => HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -239,6 +262,10 @@ fn app(context: Context) -> App<Context> {
     app = app.middleware(
         Logger::default()
     );
+    
+    app = app.middleware(
+        SessionStorage::new(CookieSessionBackend::signed(&[0; 32]).secure(false))
+    );
 
     app = app.handler(
         "/public/css",
@@ -314,7 +341,9 @@ fn app(context: Context) -> App<Context> {
 fn main() {
     let sys = actix::System::new("webapp_sample");
 
-    let manager = ConnectionManager::<SqliteConnection>::new("test.db");
+    dotenv().ok();
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let manager = ConnectionManager::<SqliteConnection>::new(database_url);
     let pool = r2d2::Pool::builder()
         .build(manager)
         .expect("Failed to create pool.");
