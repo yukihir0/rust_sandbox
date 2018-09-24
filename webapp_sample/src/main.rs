@@ -1,3 +1,4 @@
+extern crate env_logger;
 extern crate handlebars;
 #[macro_use]
 extern crate serde_derive;
@@ -24,6 +25,7 @@ use serde_json::value::{Map};
 use actix::prelude::*;
 use actix_web::{server, fs, App, Form, HttpRequest, HttpResponse, FutureResponse, AsyncResponder};
 use actix_web::http::{Method, StatusCode};
+use actix_web::middleware::Logger;
 use futures::Future;
 
 use diesel::prelude::*;
@@ -233,7 +235,11 @@ fn handle_users_destroy((req, _params): (HttpRequest<Context>, Form<UsersEditPar
 
 fn app(context: Context) -> App<Context> {
     let mut app = App::with_state(context);
-    
+     
+    app = app.middleware(
+        Logger::default()
+    );
+
     app = app.handler(
         "/public/css",
         fs::StaticFiles::new("./src/public/css")
@@ -314,8 +320,11 @@ fn main() {
         .expect("Failed to create pool.");
     let addr = SyncArbiter::start(3, move || DbExecutor(pool.clone()));
 
-    let context = Context::new(addr);
+    std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::init();
 
+    let context = Context::new(addr);
+ 
     server::new(move || app(context.clone()))
         .bind("127.0.0.1:8088")
         .unwrap()
