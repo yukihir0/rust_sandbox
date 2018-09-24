@@ -1,0 +1,19 @@
+{{#* inline "page"}}
+<h1>詳細</h1>
+<form>
+  <div class="form-group">
+    <label for="user_id">ID</label>
+    <input type="text" class="form-control" id="user_id" placeholder="" readonly value={{user.id}}>
+  </div>
+  <div class="form-group">
+    <label for="user_name">Name</label>
+    <input type="text" class="form-control" id="user_name" placeholder="" readonly value={{user.name}}>
+  </div>
+  <div class="form-group">
+    <label for="user_email">E-Mail</label>
+    <input type="text" class="form-control" id="user_email" placeholder="" readonly value={{user.email}}>
+  </div>
+  <button type="button" class="btn btn-outline-secondary" onclick="window.location.href='/users'">一覧へ戻る</button>
+</form>
+{{/inline}}
+{{~> layout ~}}

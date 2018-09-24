@@ -1,0 +1,35 @@
+{{#* inline "page"}}
+<h1>一覧</h1>
+<table class="table">
+  <thead class="thead-light">
+    <tr>
+      <th scope="col">ID</th>
+      <th scope="col">Name</th>
+      <th scope="col">show</th>
+      <th scope="col">edit</th>
+      <th scope="col">delete</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each users as |user| ~}}
+      <tr>
+        <td scope="row">{{user.id}}</td>
+        <td>{{user.name}}</td>
+        <td><button type="button" class="btn btn-outline-info" onclick="window.location.href='/users/{{user.id}}'">詳細</button></td>
+        <td><button type="button" class="btn btn-outline-warning" onclick="window.location.href='/users/{{user.id}}/edit'">編集</button></td>
+        <td>
+          <form action=/users/{{user.id}} method=POST>
+            <input type="hidden" name="user_id" value={{user.id}}>
+            <input type="hidden" name="user_name" value={{user.name}}>
+            <input type="hidden" name="user_email" value={{user.email}}>
+            <input type="hidden" name="method" value="DELETE">
+            <button type="submit" class="btn btn-outline-danger">削除</button>
+          </form>
+        </td>
+      </tr>
+    {{/each~}}
+  </tbody>
+</table>
+<button type="button" class="btn btn-outline-primary" onclick="window.location.href='/users/new'">ユーザを新規作成する</button>
+{{/inline}}
+{{~> layout ~}}

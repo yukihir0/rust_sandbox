@@ -1,0 +1,3 @@
+% diesel setup
+
+% cargo run
