@@ -1,5 +1,6 @@
-
 extern crate dotenv;
+extern crate chrono;
+extern crate log;
 extern crate env_logger;
 extern crate handlebars;
 #[macro_use]
@@ -22,6 +23,9 @@ mod schema;
 
 use dotenv::dotenv;
 use std::env;
+use std::io::Write;
+use chrono::Local;
+use log::LevelFilter;
 use handlebars::{Handlebars, to_json};
 use std::sync::Arc;
 use serde_json::value::{Map};
@@ -349,8 +353,17 @@ fn main() {
         .expect("Failed to create pool.");
     let addr = SyncArbiter::start(3, move || DbExecutor(pool.clone()));
 
-    std::env::set_var("RUST_LOG", "actix_web=info");
-    env_logger::init();
+    env_logger::Builder::new()
+        .format(|buf, record| {
+            writeln!(buf,
+                "{} [{}] - {}",
+                Local::now().format("%Y-%m-%d %H:%M:%S %z"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter(None, LevelFilter::Info)
+        .init();
 
     let context = Context::new(addr);
  
