@@ -23,191 +23,25 @@ mod schema;
 
 mod context;
 mod root_controller;
+mod user_controller;
 
 use dotenv::dotenv;
 use std::env;
 use std::io::Write;
 use chrono::Local;
 use log::LevelFilter;
-use handlebars::{to_json};
-use serde_json::value::{Map};
 
 use actix::prelude::*;
-use actix_web::{server, fs, App, Form, HttpRequest, HttpResponse, FutureResponse, AsyncResponder};
-use actix_web::http::{Method, StatusCode};
+use actix_web::{server, fs, App};
+use actix_web::http::{Method};
 use actix_web::middleware::Logger;
 use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
-use futures::Future;
 
 use diesel::prelude::*;
 use r2d2_diesel::ConnectionManager;
-use db::{DbExecutor, MessageReadUsers, MessageCreateUser, MessageReadUser, MessageUpdateUser, MessageDeleteUser};
+use db::{DbExecutor};
 
 use context::Context;
-
-#[derive(Deserialize)]
-pub struct UsersCreateParam {
-    user_name:  String,
-    user_email: String,
-}
-
-#[derive(Deserialize)]
-pub struct UsersEditParam {
-    method:     String,
-    user_name:  String,
-    user_email: String,
-}
-
-fn handle_users_index(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
-    req.state()
-        .db
-        .send(MessageReadUsers{})
-        .from_err()
-        .and_then(move |res| match res {
-            Ok(users) => {
-                let mut data = Map::new();
-                data.insert("users".to_string(), to_json(&users));
-
-                match req.state().templates.render("users_index", &data) {
-                    Ok(body) => Ok(HttpResponse::Ok().body(body)),
-                    Err(_)   => Ok(HttpResponse::InternalServerError().into()),
-                }
-            },
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
-}
-
-fn handle_users_new(req: HttpRequest<Context>) -> HttpResponse {
-    match req.state().templates.render("users_new", &json!({})) {
-        Ok(body) => HttpResponse::Ok().body(body),
-        Err(_)   => HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-fn handle_users_create((req, params): (HttpRequest<Context>, Form<UsersCreateParam>)) -> FutureResponse<HttpResponse> {
-    req.state()
-        .db
-        .send(MessageCreateUser{name: params.user_name.clone(), email: params.user_email.clone()})
-        .from_err()
-        .and_then(move |res| match res {
-            Ok(_user) => {
-                let status = StatusCode::from_u16(303).expect("invalide status given");
-                Ok(HttpResponse::build(status).header("Location", "/users").finish())
-            },
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
-}
-
-fn handle_users_show(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
-    
-    let id: i32 = match req.match_info().query("id") {
-        Ok(id) => id,
-        Err(_) => return Box::new(ok(HttpResponse::InternalServerError().into())),
-    };
-
-    req.state()
-        .db
-        .send(MessageReadUser{id: id})
-        .from_err()
-        .and_then(move |res| match res {
-            Ok(user) => {
-                let mut data = Map::new();
-                data.insert("user".to_string(), to_json(&user));
-
-                match req.state().templates.render("users_show", &data) {
-                    Ok(body) => Ok(HttpResponse::Ok().body(body)),
-                    Err(_)   => Ok(HttpResponse::InternalServerError().into()),
-                }
-            },
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
-}
-
-fn handle_users_edit(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
-    
-    let id: i32 = match req.match_info().query("id") {
-        Ok(id) => id,
-        Err(_) => return Box::new(ok(HttpResponse::InternalServerError().into())),
-    };
-
-    req.state()
-        .db
-        .send(MessageReadUser{id: id})
-        .from_err()
-        .and_then(move |res| match res {
-            Ok(user) => {
-                let mut data = Map::new();
-                data.insert("user".to_string(), to_json(&user));
-
-                match req.state().templates.render("users_edit", &data) {
-                    Ok(body) => Ok(HttpResponse::Ok().body(body)),
-                    Err(_)   => Ok(HttpResponse::InternalServerError().into()),
-                }
-            },
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
-}
-
-fn handle_users_post((req, params): (HttpRequest<Context>, Form<UsersEditParam>)) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
-   
-     match Method::from_bytes(params.method.as_bytes()) {
-         Ok(Method::PATCH)  => handle_users_update((req, params)),
-         Ok(Method::DELETE) => handle_users_destroy((req, params)),
-         _                  => Box::new(ok(HttpResponse::InternalServerError().into())),
-     }
-}
-
-fn handle_users_update((req, params): (HttpRequest<Context>, Form<UsersEditParam>)) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
-    
-    let id: i32 = match req.match_info().query("id") {
-        Ok(id) => id,
-        Err(_) => return Box::new(ok(HttpResponse::InternalServerError().into())),
-    };
-
-    req.state()
-        .db
-        .send(MessageUpdateUser{id: id, name: params.user_name.clone(), email:
-        params.user_email.clone()})
-        .from_err()
-        .and_then(move |res| match res {
-            Ok(_user) => {
-                let status = StatusCode::from_u16(303).expect("invalide status given");
-                Ok(HttpResponse::build(status).header("Location", "/users").finish())
-            },
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
-}
-
-fn handle_users_destroy((req, _params): (HttpRequest<Context>, Form<UsersEditParam>)) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
-    
-    let id: i32 = match req.match_info().query("id") {
-        Ok(id) => id,
-        Err(_) => return Box::new(ok(HttpResponse::InternalServerError().into())),
-    };
-
-    req.state()
-        .db
-        .send(MessageDeleteUser{id: id})
-        .from_err()
-        .and_then(move |res| match res {
-            Ok(_user) => {
-                let status = StatusCode::from_u16(303).expect("invalide status given");
-                Ok(HttpResponse::build(status).header("Location", "/users").finish())
-            },
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
-}
 
 fn app(context: Context) -> App<Context> {
     let mut app = App::with_state(context);
@@ -243,49 +77,49 @@ fn app(context: Context) -> App<Context> {
     app = app.route(
         "/users",
         Method::GET,
-        handle_users_index,
+        user_controller::handle_index,
     );
 
     app = app.route(
         "/users/new",
         Method::GET,
-        handle_users_new,
+        user_controller::handle_new,
     );
 
     app = app.route(
         "/users",
         Method::POST,
-        handle_users_create,
+        user_controller::handle_create,
     );
 
     app = app.route(
         "/users/{id}",
         Method::GET,
-        handle_users_show,
+        user_controller::handle_show,
     );
 
     app = app.route(
         "/users/{id}/edit",
         Method::GET,
-        handle_users_edit,
+        user_controller::handle_edit,
     );
 
     app = app.route(
         "/users/{id}",
         Method::POST,
-        handle_users_post,
+        user_controller::handle_post,
     );
 
     app = app.route(
         "/users/{id}",
         Method::PATCH,
-        handle_users_update,
+        user_controller::handle_update,
     );
 
     app = app.route(
         "/users/{id}",
         Method::DELETE,
-        handle_users_destroy,
+        user_controller::handle_destroy,
     );
 
     app
