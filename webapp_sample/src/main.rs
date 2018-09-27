@@ -21,80 +21,29 @@ mod db;
 mod models;
 mod schema;
 
+mod context;
+mod root_controller;
+
 use dotenv::dotenv;
 use std::env;
 use std::io::Write;
 use chrono::Local;
 use log::LevelFilter;
-use handlebars::{Handlebars, to_json};
-use std::sync::Arc;
+use handlebars::{to_json};
 use serde_json::value::{Map};
 
 use actix::prelude::*;
 use actix_web::{server, fs, App, Form, HttpRequest, HttpResponse, FutureResponse, AsyncResponder};
 use actix_web::http::{Method, StatusCode};
 use actix_web::middleware::Logger;
-use actix_web::middleware::session::{RequestSession, SessionStorage, CookieSessionBackend};
+use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
 use futures::Future;
 
 use diesel::prelude::*;
 use r2d2_diesel::ConnectionManager;
 use db::{DbExecutor, MessageReadUsers, MessageCreateUser, MessageReadUser, MessageUpdateUser, MessageDeleteUser};
 
-#[derive(Clone)]
-struct Context {
-    templates: Arc<Handlebars>,
-    db:        Addr<DbExecutor>,
-}
-
-impl Context {
-    fn new(db: Addr<DbExecutor>) -> Self {
-        let mut templates = Handlebars::new();
-        
-        for (name, path) in vec![
-            ("layout", "./src/views/layout.hbs"),
-            ("index", "./src/views/index.hbs"),
-            ("users_index", "./src/views/users_index.hbs"),
-            ("users_new", "./src/views/users_new.hbs"),
-            ("users_show", "./src/views/users_show.hbs"),
-            ("users_edit", "./src/views/users_edit.hbs"),
-        ] {
-            templates
-                .register_template_file(name, path)
-                .expect("failed to register template");
-        }
-
-        Self {
-            templates: Arc::new(templates),
-            db: db,
-        }
-    }
-}
-
-fn handle_index(req: HttpRequest<Context>) -> HttpResponse {
-    let counter_key = "counter";
-    
-    let counter =  match req.session().get::<i32>(counter_key) {
-        Ok(Some(count)) => {
-            if count >= 9 {
-                1
-            } else {
-                count + 1
-            }
-        },
-        _ => 1,
-    };
-
-    req.session().set(counter_key, counter);
-
-    let mut data = Map::new();
-    data.insert("count".to_string(), to_json(&counter));
-   
-    match req.state().templates.render("index", &data) {
-        Ok(body) => HttpResponse::Ok().body(body),
-        Err(_)   => HttpResponse::new(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
+use context::Context;
 
 #[derive(Deserialize)]
 pub struct UsersCreateParam {
@@ -288,7 +237,7 @@ fn app(context: Context) -> App<Context> {
     app = app.route(
         "/",
         Method::GET,
-        handle_index,
+        root_controller::handle_index,
     );
     
     app = app.route(
