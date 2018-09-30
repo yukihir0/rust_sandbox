@@ -19,9 +19,6 @@
         <td><button type="button" class="btn btn-outline-warning" onclick="window.location.href='/users/{{user.id}}/edit'">編集</button></td>
         <td>
           <form action=/users/{{user.id}} method=POST>
-            <input type="hidden" name="user_id" value={{user.id}}>
-            <input type="hidden" name="user_name" value={{user.name}}>
-            <input type="hidden" name="user_email" value={{user.email}}>
             <input type="hidden" name="method" value="DELETE">
             <button type="submit" class="btn btn-outline-danger">削除</button>
           </form>

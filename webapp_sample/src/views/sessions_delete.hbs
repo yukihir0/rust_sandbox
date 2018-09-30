@@ -1,0 +1,11 @@
+{{#* inline "page"}}
+<h1>サインアウト</h1>
+<div>{{user.name}}でサインインしています。</div>
+<br>
+
+<form action=/signout method=POST>
+  <input type="hidden" name="method" value="DELETE">
+  <button type="submit" class="btn btn-outline-danger">サインアウト</button>
+</form>
+{{/inline}}
+{{~> layout ~}}

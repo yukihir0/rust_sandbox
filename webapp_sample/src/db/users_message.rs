@@ -1,29 +1,25 @@
+use bcrypt::{hash};
+
 use actix::prelude::*;
 use actix_web::*;
+
 use diesel;
 use diesel::prelude::*;
-use r2d2::{Pool};
-use r2d2_diesel::{ConnectionManager};
 
 use models;
 use schema;
+use db::{DbExecutor};
 
-pub struct DbExecutor(pub Pool<ConnectionManager<SqliteConnection>>);
+pub struct ReadUsers {}
 
-impl Actor for DbExecutor {
-    type Context = SyncContext<Self>;
-}
-
-pub struct MessageReadUsers {}
-
-impl Message for MessageReadUsers {
+impl Message for ReadUsers {
     type Result = Result<Vec<models::User>, Error>;
 }
 
-impl Handler<MessageReadUsers> for DbExecutor {
+impl Handler<ReadUsers> for DbExecutor {
     type Result = Result<Vec<models::User>, Error>;
 
-    fn handle(&mut self, _msg: MessageReadUsers, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _msg: ReadUsers, _: &mut Self::Context) -> Self::Result {
         use self::schema::users::dsl::*;
 
         let conn: &SqliteConnection = &self.0.get().unwrap();
@@ -36,24 +32,28 @@ impl Handler<MessageReadUsers> for DbExecutor {
     }
 }
 
-pub struct MessageCreateUser {
+pub struct CreateUser {
     pub name: String,
     pub email: String,
+    pub password: String,
 }
 
-impl Message for MessageCreateUser {
+impl Message for CreateUser {
     type Result = Result<models::User, Error>;
 }
 
-impl Handler<MessageCreateUser> for DbExecutor {
+impl Handler<CreateUser> for DbExecutor {
     type Result = Result<models::User, Error>;
 
-    fn handle(&mut self, msg: MessageCreateUser, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: CreateUser, _: &mut Self::Context) -> Self::Result {
         use self::schema::users::dsl::*;
 
+        let digest = hash(&msg.password, 5).unwrap();
+        
         let new_user = models::NewUser {
             name: &msg.name,
             email: &msg.email,
+            password_digest: &digest,
         };
 
         let conn: &SqliteConnection = &self.0.get().unwrap();
@@ -72,18 +72,18 @@ impl Handler<MessageCreateUser> for DbExecutor {
     }
 }
 
-pub struct MessageReadUser {
+pub struct ReadUser {
     pub id: i32,
 }
 
-impl Message for MessageReadUser {
+impl Message for ReadUser {
     type Result = Result<models::User, Error>;
 }
 
-impl Handler<MessageReadUser> for DbExecutor {
+impl Handler<ReadUser> for DbExecutor {
     type Result = Result<models::User, Error>;
 
-    fn handle(&mut self, msg: MessageReadUser, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: ReadUser, _: &mut Self::Context) -> Self::Result {
         use self::schema::users::dsl::*;
 
         let conn: &SqliteConnection = &self.0.get().unwrap();
@@ -97,26 +97,29 @@ impl Handler<MessageReadUser> for DbExecutor {
     }
 }
 
-pub struct MessageUpdateUser {
+pub struct UpdateUser {
     pub id: i32,
     pub name: String,
-    pub email: String
+    pub email: String,
+    pub password: String,
 }
 
-impl Message for MessageUpdateUser {
+impl Message for UpdateUser {
     type Result = Result<models::User, Error>;
 }
 
-impl Handler<MessageUpdateUser> for DbExecutor {
+impl Handler<UpdateUser> for DbExecutor {
     type Result = Result<models::User, Error>;
 
-    fn handle(&mut self, msg: MessageUpdateUser, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: UpdateUser, _: &mut Self::Context) -> Self::Result {
         use self::schema::users::dsl::*;
 
         let conn: &SqliteConnection = &self.0.get().unwrap();
 
+        let digest = hash(&msg.password, 5).unwrap();
+        
         diesel::update(users.find(msg.id))
-            .set((name.eq(msg.name), email.eq(msg.email)))
+            .set((name.eq(msg.name), email.eq(msg.email), password_digest.eq(digest)))
             .execute(conn)
             .map_err(|_| error::ErrorInternalServerError("Error update user"))?;
 
@@ -129,18 +132,18 @@ impl Handler<MessageUpdateUser> for DbExecutor {
     }
 }
 
-pub struct MessageDeleteUser {
+pub struct DeleteUser {
     pub id: i32,
 }
 
-impl Message for MessageDeleteUser {
+impl Message for DeleteUser {
     type Result = Result<models::User, Error>;
 }
 
-impl Handler<MessageDeleteUser> for DbExecutor {
+impl Handler<DeleteUser> for DbExecutor {
     type Result = Result<models::User, Error>;
 
-    fn handle(&mut self, msg: MessageDeleteUser, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: DeleteUser, _: &mut Self::Context) -> Self::Result {
         use self::schema::users::dsl::*;
 
         let conn: &SqliteConnection = &self.0.get().unwrap();
@@ -158,3 +161,27 @@ impl Handler<MessageDeleteUser> for DbExecutor {
     }
 }
 
+pub struct ReadUserByEmail {
+    pub email: String,
+}
+
+impl Message for ReadUserByEmail {
+    type Result = Result<models::User, Error>;
+}
+
+impl Handler<ReadUserByEmail> for DbExecutor {
+    type Result = Result<models::User, Error>;
+
+    fn handle(&mut self, msg: ReadUserByEmail, _: &mut Self::Context) -> Self::Result {
+        use self::schema::users::dsl::*;
+
+        let conn: &SqliteConnection = &self.0.get().unwrap();
+
+        let select_user = users
+            .filter(email.eq(msg.email))
+            .first(conn)
+            .map_err(|_| error::ErrorInternalServerError("Error select user"))?;
+
+        Ok(select_user)
+    }
+}

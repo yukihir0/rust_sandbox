@@ -1,16 +1,17 @@
-extern crate dotenv;
+extern crate bcrypt;
 extern crate chrono;
-extern crate log;
+extern crate dotenv;
 extern crate env_logger;
 extern crate handlebars;
+extern crate log;
+
+extern crate futures;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
 extern crate serde_json;
 
 extern crate actix;
 extern crate actix_web;
-extern crate futures;
 
 #[macro_use]
 extern crate diesel;
@@ -20,15 +21,15 @@ extern crate r2d2_diesel;
 mod db;
 mod models;
 mod schema;
-
 mod context;
-mod root_controller;
-mod user_controller;
+mod controllers;
+mod helpers;
 
-use dotenv::dotenv;
 use std::env;
 use std::io::Write;
+
 use chrono::Local;
+use dotenv::dotenv;
 use log::LevelFilter;
 
 use actix::prelude::*;
@@ -39,9 +40,9 @@ use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
 
 use diesel::prelude::*;
 use r2d2_diesel::ConnectionManager;
-use db::{DbExecutor};
 
-use context::Context;
+use db::{DbExecutor};
+use context::{Context};
 
 fn app(context: Context) -> App<Context> {
     let mut app = App::with_state(context);
@@ -51,7 +52,10 @@ fn app(context: Context) -> App<Context> {
     );
     
     app = app.middleware(
-        SessionStorage::new(CookieSessionBackend::signed(&[0; 32]).secure(false))
+        SessionStorage::new(
+            CookieSessionBackend::signed(&[0; 32])
+                .secure(false)
+        )
     );
 
     app = app.handler(
@@ -71,55 +75,79 @@ fn app(context: Context) -> App<Context> {
     app = app.route(
         "/",
         Method::GET,
-        root_controller::handle_index,
+        controllers::root_controller::handle_index,
     );
     
     app = app.route(
         "/users",
         Method::GET,
-        user_controller::handle_index,
+        controllers::users_controller::handle_index,
     );
 
     app = app.route(
         "/users/new",
         Method::GET,
-        user_controller::handle_new,
+        controllers::users_controller::handle_new,
     );
 
     app = app.route(
         "/users",
         Method::POST,
-        user_controller::handle_create,
+        controllers::users_controller::handle_create,
     );
 
     app = app.route(
         "/users/{id}",
         Method::GET,
-        user_controller::handle_show,
+        controllers::users_controller::handle_show,
     );
 
     app = app.route(
         "/users/{id}/edit",
         Method::GET,
-        user_controller::handle_edit,
+        controllers::users_controller::handle_edit,
     );
 
     app = app.route(
         "/users/{id}",
         Method::POST,
-        user_controller::handle_post,
+        controllers::users_controller::handle_post,
     );
 
     app = app.route(
         "/users/{id}",
         Method::PATCH,
-        user_controller::handle_update,
+        controllers::users_controller::handle_update,
     );
 
     app = app.route(
         "/users/{id}",
         Method::DELETE,
-        user_controller::handle_destroy,
+        controllers::users_controller::handle_destroy,
+    );
+
+    app = app.route(
+        "/signin",
+        Method::GET,
+        controllers::sessions_controller::handle_new,
+    );
+
+    app = app.route(
+        "/signin",
+        Method::POST,
+        controllers::sessions_controller::handle_create,
+    );
+
+    app = app.route(
+        "/signout",
+        Method::POST,
+        controllers::sessions_controller::handle_post,
+    );
+
+    app = app.route(
+        "/signout",
+        Method::DELETE,
+        controllers::sessions_controller::handle_destroy,
     );
 
     app
@@ -129,7 +157,8 @@ fn main() {
     let sys = actix::System::new("webapp_sample");
 
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set");
     let manager = ConnectionManager::<SqliteConnection>::new(database_url);
     let pool = r2d2::Pool::builder()
         .build(manager)
