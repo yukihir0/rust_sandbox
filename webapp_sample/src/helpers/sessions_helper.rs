@@ -10,18 +10,33 @@ struct UserSession {
     user_id: i32,
 }
 
-pub fn set_flash_message(session: Session, message: String) {
+#[derive(Serialize, Deserialize)]
+pub struct FlashMessage {
+    pub error_messages: Vec<String>,
+}
+
+impl FlashMessage {
+    pub fn new() -> Self {
+        FlashMessage {
+            error_messages: Vec::new(),
+        }
+    }
+}
+
+//pub fn set_flash_message(session: Session, message: String) {
+pub fn set_flash_message(session: Session, flash_message: FlashMessage) {
     session
-        .set(FLASH_MESSAGE_KEY, message)
+        .set(FLASH_MESSAGE_KEY, flash_message)
         .expect("error set flash message");
 }
 
-pub fn get_flash_message(session: Session) -> String {
-    let message = match session.get::<String>(FLASH_MESSAGE_KEY) {
+//pub fn get_flash_message(session: Session) -> String {
+pub fn get_flash_message(session: Session) -> FlashMessage {
+    let message = match session.get::<FlashMessage>(FLASH_MESSAGE_KEY) {
         Ok(Some(message)) => message,
-        _                 => "".to_string(),
+        _                 => FlashMessage::new(),
     };
-    set_flash_message(session, "".to_string());
+    set_flash_message(session, FlashMessage::new());
 
     message
 }

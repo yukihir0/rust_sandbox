@@ -4,6 +4,7 @@ extern crate dotenv;
 extern crate env_logger;
 extern crate handlebars;
 extern crate log;
+extern crate regex;
 
 extern crate futures;
 #[macro_use]
@@ -35,7 +36,7 @@ use log::LevelFilter;
 use actix::prelude::*;
 use actix_web::{server, fs, App};
 use actix_web::http::{Method};
-use actix_web::middleware::Logger;
+use actix_web::middleware::{Logger};
 use actix_web::middleware::session::{SessionStorage, CookieSessionBackend};
 
 use diesel::prelude::*;
@@ -46,7 +47,7 @@ use context::{Context};
 
 fn app(context: Context) -> App<Context> {
     let mut app = App::with_state(context);
-     
+   
     app = app.middleware(
         Logger::default()
     );
