@@ -1,0 +1,9 @@
+[package]
+name = "futures_sample01"
+version = "0.1.0"
+authors = ["yukihir0 <yukihiro.cotori@gmail.com>"]
+
+[dependencies]
+futures = "0.1.24"
+future-by-example = "0.1.0"
+tokio-core = "0.1.17"
