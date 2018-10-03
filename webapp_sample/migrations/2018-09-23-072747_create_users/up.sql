@@ -4,5 +4,6 @@ CREATE TABLE users (
   name  VARCHAR NOT NULL,
   email VARCHAR NOT NULL UNIQUE,
   password_digest VARCHAR NOT NULL,
-  created_at TIMESTAMP DEFAULT (DATETIME('now','localtime')) NOT NULL
+  created_at TIMESTAMP DEFAULT (DATETIME('now','localtime')) NOT NULL,
+  updated_at TIMESTAMP DEFAULT (DATETIME('now','localtime')) NOT NULL
 )

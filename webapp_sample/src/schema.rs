@@ -6,5 +6,6 @@ table! {
         email -> Text,
         password_digest -> Text,
         created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }

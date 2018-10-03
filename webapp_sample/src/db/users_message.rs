@@ -58,6 +58,7 @@ impl Handler<CreateUser> for DbExecutor {
             email: &msg.email,
             password_digest: &digest,
             created_at: Local::now().naive_local(),
+            updated_at: Local::now().naive_local(),
         };
 
         let conn: &SqliteConnection = &self.0.get().unwrap();
@@ -123,7 +124,12 @@ impl Handler<UpdateUser> for DbExecutor {
         let digest = hash(&msg.password, 5).unwrap();
         
         diesel::update(users.find(msg.id))
-            .set((name.eq(msg.name), email.eq(msg.email), password_digest.eq(digest)))
+            .set((
+                name.eq(msg.name),
+                email.eq(msg.email),
+                password_digest.eq(digest),
+                updated_at.eq(Local::now().naive_local()),
+            ))
             .execute(conn)
             .map_err(|_| error::ErrorInternalServerError("Error update user"))?;
 

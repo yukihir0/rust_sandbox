@@ -9,6 +9,7 @@ pub struct User {
     pub email: String,
     pub password_digest: String,
     pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Insertable)]
@@ -19,4 +20,5 @@ pub struct NewUser<'a> {
     pub email: &'a str,
     pub password_digest: &'a str,
     pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
