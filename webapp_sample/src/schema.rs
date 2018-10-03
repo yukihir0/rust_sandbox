@@ -5,5 +5,6 @@ table! {
         name -> Text,
         email -> Text,
         password_digest -> Text,
+        created_at -> Timestamp,
     }
 }

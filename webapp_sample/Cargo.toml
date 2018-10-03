@@ -5,19 +5,19 @@ authors = ["yukihir0 <yukihiro.cotori@gmail.com>"]
 
 [dependencies]
 serde = "1.0"
-serde_json = "1.0"
+serde_json = "1.0.31"
 serde_derive = "1.0"
 futures = "0.1"
 actix = "0.7"
 actix-web = "0.7"
-diesel = { version = "1.0.0", features = ["sqlite"] }
+diesel = { version = "1.0.0", features = ["sqlite", "chrono"] }
 r2d2 = "0.8"
 r2d2-diesel = "1.0.0"
 dotenv = "0.9.0"
 handlebars = "1.0.4"
 log = "0.4.5"
 env_logger = "0.5.13"
-chrono = "0.4.6"
+chrono = { version = "0.4.6", features = ["serde"] }
 bcrypt = "0.2"
 regex = "1"
 uuid = { version = "0.7", features = ["v4"] }

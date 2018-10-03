@@ -1,4 +1,5 @@
 use bcrypt::{hash};
+use chrono::*;
 use uuid::Uuid;
 
 use actix::prelude::*;
@@ -56,6 +57,7 @@ impl Handler<CreateUser> for DbExecutor {
             name: &msg.name,
             email: &msg.email,
             password_digest: &digest,
+            created_at: Local::now().naive_local(),
         };
 
         let conn: &SqliteConnection = &self.0.get().unwrap();
