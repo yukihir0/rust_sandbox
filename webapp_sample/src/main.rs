@@ -5,6 +5,7 @@ extern crate env_logger;
 extern crate handlebars;
 extern crate log;
 extern crate regex;
+extern crate uuid;
 
 extern crate futures;
 #[macro_use]

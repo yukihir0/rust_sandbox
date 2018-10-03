@@ -1,4 +1,5 @@
 use bcrypt::{hash};
+use uuid::Uuid;
 
 use actix::prelude::*;
 use actix_web::*;
@@ -51,6 +52,7 @@ impl Handler<CreateUser> for DbExecutor {
         let digest = hash(&msg.password, 5).unwrap();
         
         let new_user = models::NewUser {
+            uuid: &Uuid::new_v4().to_string(),
             name: &msg.name,
             email: &msg.email,
             password_digest: &digest,
