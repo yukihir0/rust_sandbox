@@ -14,9 +14,11 @@ fn main() {
     sample08();
     sample09();
     sample10();
-
+    
     // Reference: Network programming in Rust.
     sample11();
+
+    sample12();
 }
 
 fn sample01() {
@@ -162,4 +164,21 @@ fn sample11() {
     println!("Called check_prime_impl_trait");
     println!("Results are {} and {}", res_one.wait().unwrap(),
     res_two.wait().unwrap());
+}
+
+fn sample12() {
+    use futures::Future;
+    use future_by_example::*;
+
+    let good = new_example_future();
+    let bad = new_example_future_err();
+    let both = good
+        .and_then(|_good| bad)
+        .or_else(|_| Ok(1))
+        .and_then(|x| Ok(x+1))
+        .and_then(|x| Ok(x+1))
+        .and_then(|_| new_example_future_err());
+
+    let expected = Err(ExampleFutureError::Oops);
+    assert_eq!(both.wait(), expected);
 }
