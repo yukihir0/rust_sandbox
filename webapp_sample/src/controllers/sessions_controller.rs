@@ -2,14 +2,14 @@ use handlebars::{to_json};
 use regex::{Regex};
 use serde_json::value::{Map};
 
-use actix_web::{Form, HttpRequest, HttpResponse, FutureResponse, AsyncResponder};
+use actix_web::{State, Form, HttpResponse, FutureResponse, AsyncResponder};
 use actix_web::http::{Method};
-use actix_web::middleware::session::{RequestSession};
+use actix_web::middleware::session::{Session};
 use futures::Future;
 
 use db::{users_message};
-
 use context::{Context};
+use controllers;
 use helpers::{sessions_helper};
 
 #[derive(Deserialize)]
@@ -23,35 +23,42 @@ pub struct SessionsDeleteParam {
     method: String,
 }
 
-pub fn handle_new(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
+pub fn handle_new((state, session): (State<Context>, Session)) -> FutureResponse<HttpResponse> {
     use futures::future::ok;
     
-    if sessions_helper::is_signined(req.session()) {
-        match sessions_helper::current_user_id(req.session()) {
+    let templates = state.templates.clone();
+   
+    // TODO Refarctor Me
+    if sessions_helper::is_signined(&session) {
+        match sessions_helper::current_user_id(&session) {
             Some(user_id) => {
-                req.state()
+                state
                     .db
                     .send(users_message::ReadUser{id: user_id})
                     .from_err()
                     .and_then(move |res| match res {
                         Ok(user) => {
-                            let mut data = Map::new();
-                            data.insert("user".to_string(), to_json(&user));
+                            if sessions_helper::is_valid_session_id(&session, &user.session_digest.clone().unwrap()) {
+                                let mut data = Map::new();
+                                data.insert("user".to_string(), to_json(&user));
 
-                            Ok(req.state().render_template("sessions_delete", Some(data)))
+                                Ok(controllers::render(templates, "sessions_delete", Some(data)))
+                            } else {
+                                Ok(controllers::http_internal_server_error())
+                            }
                         },
                         Err(_) => {
-                            Ok(req.state().http_internal_server_error())
+                            Ok(controllers::http_internal_server_error())
                         },
                     })
                     .responder()
             },
             None => {
-                Box::new(ok(req.state().http_internal_server_error()))
+                Box::new(ok(controllers::http_internal_server_error()))
             },
         }
     } else {
-        let flash_message = sessions_helper::get_flash_message(req.session());
+        let flash_message = sessions_helper::get_flash_message(&session);
 
         let mut data = Map::new();
         data.insert(
@@ -61,11 +68,11 @@ pub fn handle_new(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
             )
         );
     
-        Box::new(ok(req.state().render_template("sessions_new", Some(data))))
+        Box::new(ok(controllers::render(templates, "sessions_new", Some(data))))
     }
 }
 
-pub fn handle_create((req, params): (HttpRequest<Context>, Form<SessionsCreateParam>)) -> FutureResponse<HttpResponse> {
+pub fn handle_create((state, session, params): (State<Context>, Session, Form<SessionsCreateParam>)) -> FutureResponse<HttpResponse> {
     use futures::future::ok;
    
     let mut error_messages =  Vec::new();
@@ -94,52 +101,229 @@ pub fn handle_create((req, params): (HttpRequest<Context>, Form<SessionsCreatePa
     if error_messages.len() > 0 {
         let flash_message = sessions_helper::FlashMessage{error_messages: error_messages};
         sessions_helper::set_flash_message(
-            req.session(),
+            &session,
             flash_message,
         );
-        return Box::new(ok(req.state().http_redirect("/signin", 303)));
+        return Box::new(ok(controllers::http_redirect("/signin", 303)));
     }
 
-    req.state()
+    let user_email =  params.user_email.clone();
+
+    state
         .db
         .send(users_message::ReadUserByEmail{email: params.user_email.clone()})
         .from_err()
-        .and_then(move |res| match res {
-            Ok(user) => { 
-                if sessions_helper::is_valid_password(&params.user_password, &user.password_digest) {
-                    sessions_helper::signin(req.session(), user.id);
-                } else {
+
+        // !!! #1
+        /*
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/signin", 303))
+        })
+        .responder()
+        */
+
+        // !!! #2
+        /*
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |user| {
+            match sessions_helper::signin2(&user, &params.user_password, &session) {
+                Some(session_id) => {
+                    state
+                        .db
+                        .send(users_message::UpdateUserSession{
+                            email: params.user_email.clone(),
+                            session_id: session_id
+                        })
+                        .from_err()
+                        .and_then(move |res| {
+                            res.map(move |user| user)
+                        })
+                        .wait();
+                },
+                None => {
                     let flash_message = sessions_helper::FlashMessage{
                         error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
                     };
 
-                    sessions_helper::set_flash_message(
-                        req.session(),
-                        flash_message,
-                    );
-                }
+                    sessions_helper::set_flash_message(&session, flash_message);
+                },
+            }
 
-                Ok(req.state().http_redirect("/signin", 303))
-            },
-            Err(_) => {
-                Ok(req.state().http_internal_server_error())
-            },
+            Ok(())
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/signin", 303))
+        })
+        .responder()
+        */
+
+        // !!! #3
+        /*
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |user| {
+            sessions_helper::signin2(&user, &params.user_password, &session)
+                .map(move |session_id| {
+                    state
+                        .db
+                        .send(users_message::UpdateUserSession{
+                            email: params.user_email.clone(),
+                            session_id: session_id
+                        })
+                        .from_err()
+                        .and_then(move |res| {
+                            res.map(move |user| user)
+                        })
+                })
+                .or_else(|| {
+                    let flash_message = sessions_helper::FlashMessage{
+                        error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
+                    };
+
+                    sessions_helper::set_flash_message(&session, flash_message);
+                    
+                    None    
+                })
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/signin", 303))
+        })
+        .responder()
+        */
+
+        // !!! #4
+        /*
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |user| {
+            match sessions_helper::signin3(&user, &params.user_password, &session) {
+                Ok(session_id) => {
+                    state
+                        .db
+                        .send(users_message::UpdateUserSession{
+                            email: params.user_email.clone(),
+                            session_id: session_id
+                        })
+                        .from_err()
+                        .and_then(move |res| {
+                            res.map(move |user| user)
+                        })
+                        .wait();
+                },
+                Err(_) => {
+                    let flash_message = sessions_helper::FlashMessage{
+                        error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
+                    };
+
+                    sessions_helper::set_flash_message(&session, flash_message);
+                },
+            }
+
+            Ok(())
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/signin", 303))
+        })
+        .responder()
+        */
+
+        // !!! #5
+        /*
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |user| {
+            ok(
+                sessions_helper::signin2(&user, &params.user_password, &session)
+                    .map(move |session_id| {
+                        //session_id
+                        state
+                            .db
+                            .send(users_message::UpdateUserSession{
+                                //email: params.user_email.clone(),
+                                email: "hoge@example.com".to_string(),
+                                session_id: session_id,
+                            })
+                            .from_err()
+                            .and_then(move |res| {
+                                res.map(move |user| user)
+                            })
+                            .wait()
+                    })
+                    .or_else(|| {
+                        let flash_message = sessions_helper::FlashMessage{
+                            error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
+                        };
+
+                        sessions_helper::set_flash_message(&session, flash_message);
+
+                        None
+                    })
+            )
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/signin", 303))
+        })
+        .responder()
+        */
+
+        // !!! #6
+        .and_then(move |res| {
+            // TODO Process missing user error
+            res.map(move |user| user)
+        })
+        .and_then(move |user| {
+            sessions_helper::signin3(&user, &params.user_password, &session)
+                .and_then(move |session_id| {
+                    state
+                        .db
+                        .send(users_message::UpdateUserSession{
+                            email: user_email,
+                            session_id: session_id,
+                        })
+                        .from_err()
+                        .and_then(move |res| {
+                            res.map(move |user| user)
+                        })
+                        .wait();
+
+                        Ok(())
+                })
+                .or_else(move |_| {
+                    let flash_message = sessions_helper::FlashMessage{
+                        error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
+                    };
+
+                    sessions_helper::set_flash_message(&session, flash_message);
+
+                    Ok(())
+                })
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/signin", 303))
         })
         .responder()
 }
 
-pub fn handle_post((req, params): (HttpRequest<Context>, Form<SessionsDeleteParam>)) -> FutureResponse<HttpResponse> {
+pub fn handle_post((state, session, params): (State<Context>, Session, Form<SessionsDeleteParam>)) -> FutureResponse<HttpResponse> {
     use futures::future::ok;
    
      match Method::from_bytes(params.method.as_bytes()) {
-         Ok(Method::DELETE) => handle_destroy(req),
-         _                  => Box::new(ok(req.state().http_internal_server_error())),
+         Ok(Method::DELETE) => handle_destroy((state, session, params)),
+         _                  => Box::new(ok(controllers::http_internal_server_error())),
      }
 }
 
-pub fn handle_destroy(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
+pub fn handle_destroy((_state, session, _params): (State<Context>, Session, Form<SessionsDeleteParam>)) -> FutureResponse<HttpResponse> {
     use futures::future::ok;
    
-    sessions_helper::signout(req.session());
-    Box::new(ok(req.state().http_redirect("/signin", 303)))
+    sessions_helper::signout(&session);
+    Box::new(ok(controllers::http_redirect("/signin", 303)))
 }

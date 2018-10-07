@@ -51,14 +51,16 @@ impl Handler<CreateUser> for DbExecutor {
         use self::schema::users::dsl::*;
 
         let digest = hash(&msg.password, 5).unwrap();
-        
+       
+        let now = Local::now().naive_local();
+
         let new_user = models::NewUser {
             uuid: &Uuid::new_v4().to_string(),
             name: &msg.name,
             email: &msg.email,
             password_digest: &digest,
-            created_at: Local::now().naive_local(),
-            updated_at: Local::now().naive_local(),
+            created_at: now,
+            updated_at: now,
         };
 
         let conn: &SqliteConnection = &self.0.get().unwrap();
@@ -193,5 +195,42 @@ impl Handler<ReadUserByEmail> for DbExecutor {
             .map_err(|_| error::ErrorInternalServerError("Error select user"))?;
 
         Ok(select_user)
+    }
+}
+
+pub struct UpdateUserSession {
+    pub email: String,
+    pub session_id: String,
+}
+
+impl Message for UpdateUserSession {
+    type Result = Result<models::User, Error>;
+}
+
+impl Handler<UpdateUserSession> for DbExecutor {
+    type Result = Result<models::User, Error>;
+
+    fn handle(&mut self, msg: UpdateUserSession, _: &mut Self::Context) -> Self::Result {
+        use self::schema::users::dsl::*;
+
+        let conn: &SqliteConnection = &self.0.get().unwrap();
+
+        let digest = hash(&msg.session_id, 5).unwrap();
+        
+        diesel::update(users
+            .filter(email.eq(msg.email.clone())))
+            .set((
+                session_digest.eq(digest),
+                updated_at.eq(Local::now().naive_local()),
+            ))
+            .execute(conn)
+            .map_err(|_| error::ErrorInternalServerError("Error update user"))?;
+
+        let update_user = users
+            .filter(email.eq(msg.email))
+            .first(conn)
+            .map_err(|_| error::ErrorInternalServerError("Error select user"))?;
+
+        Ok(update_user)
     }
 }

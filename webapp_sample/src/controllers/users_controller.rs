@@ -1,13 +1,18 @@
 use handlebars::{to_json};
 use serde_json::value::{Map};
 
-use actix_web::{Form, HttpRequest, HttpResponse, FutureResponse, AsyncResponder};
+use actix_web::{State, Path, Form, HttpResponse, FutureResponse, AsyncResponder};
 use actix_web::http::{Method};
 use futures::Future;
 
 use db::{users_message};
-
 use context::{Context};
+use controllers;
+
+#[derive(Deserialize)]
+pub struct UsersReadPath{
+    pub id: i32,
+}
 
 #[derive(Deserialize)]
 pub struct UsersCreateParam {
@@ -24,31 +29,34 @@ pub struct UsersPostParam {
     user_password: Option<String>,
 }
 
-pub fn handle_index(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
-    req.state()
+pub fn handle_index(state: State<Context>) -> FutureResponse<HttpResponse> {
+    let templates = state.templates.clone();
+    
+    state
         .db
         .send(users_message::ReadUsers{})
         .from_err()
-        .and_then(move |res| match res {
-            Ok(users) => {
+        .and_then(move |res| {
+            res.map(move |users| {
                 let mut data = Map::new();
                 data.insert("users".to_string(), to_json(&users));
-
-                Ok(req.state().render_template("users_index", Some(data)))
-            },
-            Err(_) => {
-                Ok(req.state().http_internal_server_error())
-            },
+                data
+            })
+        })
+        .and_then(move |data| {
+            Ok(controllers::render(templates, "users_index", Some(data)))
         })
         .responder()
 }
 
-pub fn handle_new(req: HttpRequest<Context>) -> HttpResponse {
-    req.state().render_template("users_new", None)
+pub fn handle_new(state: State<Context>) -> FutureResponse<HttpResponse> {
+    use futures::future::ok;
+
+    Box::new(ok(controllers::render(state.templates.clone(), "users_new", None)))
 }
 
-pub fn handle_create((req, params): (HttpRequest<Context>, Form<UsersCreateParam>)) -> FutureResponse<HttpResponse> {
-    req.state()
+pub fn handle_create((state, params): (State<Context>, Form<UsersCreateParam>)) -> FutureResponse<HttpResponse> {
+    state
         .db
         .send(users_message::CreateUser{
             name: params.user_name.clone(),
@@ -56,87 +64,104 @@ pub fn handle_create((req, params): (HttpRequest<Context>, Form<UsersCreateParam
             password: params.user_password.clone()
         })
         .from_err()
-        .and_then(move |res| match res {
-            Ok(_user) => {
-                Ok(req.state().http_redirect("/users", 303))
-            },
-            Err(_) => {
-                Ok(req.state().http_internal_server_error())
-            },
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/users", 303))
         })
         .responder()
 }
 
-pub fn handle_show(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
+pub fn handle_show((state, path): (State<Context>, Path<UsersReadPath>)) -> FutureResponse<HttpResponse> {
+    let templates = state.templates.clone();
     
-    let id: i32 = match req.match_info().query("id") {
-        Ok(id) => id,
-        Err(_) => return Box::new(ok(req.state().http_internal_server_error())),
-    };
-
-    req.state()
+    state
         .db
-        .send(users_message::ReadUser{id: id})
+        .send(users_message::ReadUser{id: path.id})
         .from_err()
-        .and_then(move |res| match res {
-            Ok(user) => {
+        .and_then(move |res| {
+            res.map(move |user| {
                 let mut data = Map::new();
                 data.insert("user".to_string(), to_json(&user));
-
-                Ok(req.state().render_template("users_show", Some(data)))
-            },
-            Err(_) => {
-                Ok(req.state().http_internal_server_error())
-            },
+                data
+            })
+        })
+        .and_then(move |data| {
+            Ok(controllers::render(templates, "users_show", Some(data)))
         })
         .responder()
 }
 
-pub fn handle_edit(req: HttpRequest<Context>) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
-    
-    let id: i32 = match req.match_info().query("id") {
-        Ok(id) => id,
-        Err(_) => return Box::new(ok(req.state().http_internal_server_error())),
-    };
+pub fn handle_show_chain((state, path): (State<Context>, Path<UsersReadPath>)) -> FutureResponse<HttpResponse> {
+    let templates = state.templates.clone();
 
-    req.state()
+    state
         .db
-        .send(users_message::ReadUser{id: id})
+        .send(users_message::ReadUser{id: path.id})
         .from_err()
-        .and_then(move |res| match res {
-            Ok(user) => {
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |user| {
+            state
+                .db
+                .send(users_message::ReadUser{id: user.id})
+                .from_err()
+                .and_then(move |res| {
+                    res.map(move |user| user)
+                })
+                .and_then(move |user| {
+                    state
+                        .db
+                        .send(users_message::ReadUser{id: user.id})
+                        .from_err()
+                        .and_then(move |res| {
+                            res.map(move |user| {
+                                let mut data = Map::new();
+                                data.insert("user".to_string(), to_json(&user));
+                                data
+                            })
+                        })
+                })
+        }) 
+        .and_then(move |data| {
+            Ok(controllers::render(templates, "users_show", Some(data)))
+        })
+        .responder()
+}
+
+pub fn handle_edit((state, path): (State<Context>, Path<UsersReadPath>)) -> FutureResponse<HttpResponse> {
+    let templates = state.templates.clone();
+    
+    state
+        .db
+        .send(users_message::ReadUser{id: path.id})
+        .from_err()
+        .and_then(move |res| {
+            res.map(move |user| {
                 let mut data = Map::new();
                 data.insert("user".to_string(), to_json(&user));
-
-                Ok(req.state().render_template("users_edit", Some(data)))
-            },
-            Err(_) => {
-                Ok(req.state().http_internal_server_error())
-            },
+                data
+            })
+        })
+        .and_then(move |data| {
+            Ok(controllers::render(templates, "users_edit", Some(data)))
         })
         .responder()
 }
 
-pub fn handle_post((req, params): (HttpRequest<Context>, Form<UsersPostParam>)) -> FutureResponse<HttpResponse> {
+pub fn handle_post((state, path, params): (State<Context>, Path<UsersReadPath>, Form<UsersPostParam>)) -> FutureResponse<HttpResponse> {
     use futures::future::ok;
    
      match Method::from_bytes(params.method.as_bytes()) {
-         Ok(Method::PATCH)  => handle_update((req, params)),
-         Ok(Method::DELETE) => handle_destroy((req, params)),
-         _                  => Box::new(ok(req.state().http_internal_server_error())),
+         Ok(Method::PATCH)  => handle_update((state, path, params)),
+         Ok(Method::DELETE) => handle_destroy((state, path, params)),
+         _                  => Box::new(ok(controllers::http_internal_server_error())),
      }
 }
 
-pub fn handle_update((req, params): (HttpRequest<Context>, Form<UsersPostParam>)) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
-    
-    let id: i32 = match req.match_info().query("id") {
-        Ok(id) => id,
-        Err(_) => return Box::new(ok(req.state().http_internal_server_error())),
-    };
-
+pub fn handle_update((state, path, params): (State<Context>, Path<UsersReadPath>, Form<UsersPostParam>)) -> FutureResponse<HttpResponse> {
     let UsersPostParam{
         method:_,
         user_name,
@@ -148,45 +173,34 @@ pub fn handle_update((req, params): (HttpRequest<Context>, Form<UsersPostParam>)
     let email = user_email.unwrap_or("".to_string());
     let password = user_password.unwrap_or("".to_string());
     
-    req.state()
+    state
         .db
         .send(users_message::UpdateUser{
-            id: id,
+            id: path.id,
             name: name.clone(),
             email: email.clone(),
             password: password.clone()
         })
         .from_err()
-        .and_then(move |res| match res {
-            Ok(_user) => {
-                Ok(req.state().http_redirect("/users", 303))
-            },
-            Err(_) => {
-                Ok(req.state().http_internal_server_error())
-            },
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/users", 303))
         })
         .responder()
 }
 
-pub fn handle_destroy((req, _params): (HttpRequest<Context>, Form<UsersPostParam>)) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
-    
-    let id: i32 = match req.match_info().query("id") {
-        Ok(id) => id,
-        Err(_) => return Box::new(ok(req.state().http_internal_server_error())),
-    };
-
-    req.state()
+pub fn handle_destroy((state, path, _params): (State<Context>, Path<UsersReadPath>, Form<UsersPostParam>)) -> FutureResponse<HttpResponse> {
+    state
         .db
-        .send(users_message::DeleteUser{id: id})
+        .send(users_message::DeleteUser{id: path.id})
         .from_err()
-        .and_then(move |res| match res {
-            Ok(_user) => {
-                Ok(req.state().http_redirect("/users", 303))
-            },
-            Err(_) => {
-                Ok(req.state().http_internal_server_error())
-            },
+        .and_then(move |res| {
+            res.map(move |user| user)
+        })
+        .and_then(move |_| {
+            Ok(controllers::http_redirect("/users", 303))
         })
         .responder()
 }

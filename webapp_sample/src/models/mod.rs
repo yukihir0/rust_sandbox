@@ -1,5 +1,5 @@
 use super::schema::users;
-use chrono::{DateTime, NaiveDateTime, Local};
+use chrono::{NaiveDateTime};
 
 #[derive(Serialize, Queryable)]
 pub struct User {
@@ -8,6 +8,7 @@ pub struct User {
     pub name: String,
     pub email: String,
     pub password_digest: String,
+    pub session_digest: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }

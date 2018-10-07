@@ -21,3 +21,5 @@ chrono = { version = "0.4.6", features = ["serde"] }
 bcrypt = "0.2"
 regex = "1"
 uuid = { version = "0.7", features = ["v4"] }
+rand = "0.5.5"
+failure = "0.1.2"
