@@ -16,9 +16,11 @@ fn main() {
     sample10();
     
     // Reference: Network programming in Rust.
-    sample11();
+    //sample11();
 
     sample12();
+    sample13();
+    sample14();
 }
 
 fn sample01() {
@@ -181,4 +183,84 @@ fn sample12() {
 
     let expected = Err(ExampleFutureError::Oops);
     assert_eq!(both.wait(), expected);
+}
+
+fn sample13() {
+    use futures::Future;
+    use futures::future::ok;
+
+    #[derive(Debug, PartialEq)]
+    struct Hoge { id: u32 }
+
+    let hoge = ok::<Hoge, _>(Hoge { id: 1 });
+
+    let mapped = hoge
+        .map(|mut h| {
+            // Result<Hoge, ()> => Result<Hoge, ()>
+            h.id = 10;
+            h
+        })
+        .map(|_| {
+            // Result<Hoge, ()> => Result<Hoge, ()>
+            Hoge { id: 100 } 
+        })
+        .map(|_| {
+            // Result<Hoge, ()> => Result<Integer, ()>
+            100
+        })
+        .map(|_| {
+            // Result<Integer, ()> => Result<String, ()>
+            "hoge".to_string() 
+        })
+        .map_err(|_: ()| {
+            // Result<String, ()> => Result<String, String>
+            Err::<String, String>("hoge_error".to_string())
+        })
+        .map(|_| {
+            // Result<String, String> => Result<Hoge, String>
+            Hoge { id: 1000 }
+        });
+
+    let expected = Ok(Hoge { id: 1000 });
+    assert_eq!(mapped.wait(), expected);
+}
+
+fn sample14() {
+    use futures::Future;
+    use futures::future::ok;
+
+    #[derive(Debug, PartialEq)]
+    struct Hoge { id: u32 }
+
+    let hoge = ok::<Hoge, _>(Hoge { id: 1 });
+
+    let mapped = hoge
+        .and_then(|mut h| {
+            // Result<Hoge, ()> => Result<Hoge, ()>
+            h.id = 10;
+            Ok(h)
+        })
+        .and_then(|_| {
+            // Result<Hoge, ()> => Result<Hoge, ()>
+            Ok(Hoge { id: 100 })
+        })
+        .and_then(|_| {
+            // Result<Hoge, ()> => Result<Integer, ()>
+            Ok(100)
+        })
+        .and_then(|_| {
+            // Result<Integer, ()> => Result<String, ()>
+            Ok("hoge".to_string())
+        })
+        .or_else(|_: ()| {
+            // Never called.
+            Err("hoge_error1".to_string())
+        })
+        .and_then(|_| {
+            // Result<Hoge, String> => Result<Hoge, String>
+            Ok(Hoge { id: 1000 })
+        });
+
+    let expected = Ok(Hoge { id: 1000 });
+    assert_eq!(mapped.wait(), expected);
 }
