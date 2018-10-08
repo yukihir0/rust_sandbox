@@ -21,6 +21,7 @@ fn main() {
     sample12();
     sample13();
     sample14();
+    sample15();
 }
 
 fn sample01() {
@@ -263,4 +264,23 @@ fn sample14() {
 
     let expected = Ok(Hoge { id: 1000 });
     assert_eq!(mapped.wait(), expected);
+}
+
+fn sample15() {
+    use futures::{Future};
+    use futures::future::{ok, Either};
+    
+    fn make_either(value: usize) -> impl Future<Item = usize, Error = ()> {
+        if value < 10 {
+            Either::A(ok(value).and_then(|x| ok(x + x)))
+        } else {
+            Either::B(ok(value).map(|x| x))
+        }
+    }
+    
+    let a = make_either(1);
+    assert_eq!(a.wait(), Ok(2));
+    
+    let b = make_either(11);
+    assert_eq!(b.wait(), Ok(11));
 }
