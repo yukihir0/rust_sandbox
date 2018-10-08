@@ -22,6 +22,8 @@ fn main() {
     sample13();
     sample14();
     sample15();
+    sample16();
+
 }
 
 fn sample01() {
@@ -283,4 +285,82 @@ fn sample15() {
     
     let b = make_either(11);
     assert_eq!(b.wait(), Ok(11));
+}
+
+fn sample16() {
+    use futures::Future;
+    use futures::future::{ok, err};
+
+    let a = ok::<u32, String>(10);
+    let ret = a
+        .then(move |value| {
+            match value {
+                Ok(v) => {
+                    Ok(v + 1)
+                },
+                Err(e) => {
+                    Err(e)
+                },
+            }
+        });
+    
+    assert_eq!(ret.wait(), Ok(11));
+
+    let b = err::<u32, String>("error".to_string());
+    let ret = b
+        .then(move |value| {
+            match value {
+                Ok(v) => {
+                    Ok(v + 1)
+                },
+                Err(e) => {
+                    Err(e)
+                },
+            }
+        });
+    
+    assert_eq!(ret.wait(), Err("error".to_string()));
+
+    let c = ok::<u32, String>(10);
+    let ret = c
+        .and_then(move |value| {
+            Ok(value + 1)
+        })
+        .and_then(move |value| {
+            Ok(value + 1)
+        })
+        .then(move |value| {
+            match value {
+                Ok(v) => {
+                    Ok(v + 2)
+                },
+                Err(e) => {
+                    Err(e)
+                }
+            }
+        });
+
+    assert_eq!(ret.wait(), Ok(14));
+
+
+    let d = ok::<u32, String>(10);
+    let ret = d
+        .and_then(move |value| {
+            Ok(value + 1)
+        })
+        .and_then(move |value| {
+            Err("error".to_string())
+        })
+        .then(move |value: Result<u32, String>| {
+            match value {
+                Ok(v) => {
+                    Ok::<u32, String>(v + 2)
+                },
+                Err(_e) => {
+                    Ok::<u32, String>(100)
+                }
+            }
+        });
+
+    assert_eq!(ret.wait(), Ok(100));
 }
