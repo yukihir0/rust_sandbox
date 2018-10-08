@@ -73,7 +73,7 @@ pub fn handle_new((state, session): (State<Context>, Session)) -> FutureResponse
 }
 
 pub fn handle_create((state, session, params): (State<Context>, Session, Form<SessionsCreateParam>)) -> FutureResponse<HttpResponse> {
-    use futures::future::ok;
+    use futures::future::{ok, Either};
    
     let mut error_messages =  Vec::new();
 
@@ -280,31 +280,32 @@ pub fn handle_create((state, session, params): (State<Context>, Session, Form<Se
             res.map(move |user| user)
         })
         .and_then(move |user| {
-            sessions_helper::signin3(&user, &params.user_password, &session)
-                .and_then(move |session_id| {
-                    state
-                        .db
-                        .send(users_message::UpdateUserSession{
-                            email: user_email,
-                            session_id: session_id,
-                        })
-                        .from_err()
-                        .and_then(move |res| {
-                            res.map(move |user| user)
-                        })
-                        .wait();
+            match sessions_helper::signin3(&user, &params.user_password, &session) {
+                Ok(session_id) => {
+                    Either::A(
+                        state
+                            .db
+                            .send(users_message::UpdateUserSession{
+                                email: user_email,
+                                session_id: session_id,
+                            })
+                            .from_err()
+                            .and_then(move |res| {
+                                res.map(move |_user| ())
+                            })
+                        )
+                },
+                Err(_e) => {
+                    Either::B({
+                        let flash_message = sessions_helper::FlashMessage{
+                            error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
+                        };
 
-                        Ok(())
-                })
-                .or_else(move |_| {
-                    let flash_message = sessions_helper::FlashMessage{
-                        error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
-                    };
-
-                    sessions_helper::set_flash_message(&session, flash_message);
-
-                    Ok(())
-                })
+                        sessions_helper::set_flash_message(&session, flash_message);
+                        ok(())
+                    })
+                }
+            }
         })
         .and_then(move |_| {
             Ok(controllers::http_redirect("/signin", 303))
