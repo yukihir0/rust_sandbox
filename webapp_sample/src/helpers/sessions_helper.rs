@@ -5,18 +5,10 @@ use rand::distributions::{Alphanumeric};
 use actix_web::*;
 use actix_web::middleware::session::{Session};
 
-use futures::Future;
-
-use models;
+use models::{User, UserSession};
 
 const USER_SESSION_KEY: &str  = "USER_SESSION";
 const FLASH_MESSAGE_KEY: &str = "FLASH_MESSAGE";
-
-#[derive(Serialize, Deserialize)]
-struct UserSession {
-    user_id: i32,
-    session_id: String,
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct FlashMessage {
@@ -65,62 +57,23 @@ pub fn is_valid_session_id(session: &Session, digest: &str) -> bool {
     } 
 }
 
-pub fn signin(session: &Session, user_id: i32) -> String {
-    let session_id = create_session_id();
-
-    session
-        .set(USER_SESSION_KEY, UserSession{user_id: user_id, session_id: session_id.clone()})
-        .expect("error set session id");
-
-    session_id
-}
-
-pub fn signin2(user: &models::User, password: &str, session: &Session) -> Option<String> {
+//pub fn signin(user: &User, password: &str, session: &Session) -> Result<String, Error> {
+pub fn signin(user: &User, password: &str, session: &Session) -> Result<UserSession, Error> {
     match verify(password, &user.password_digest.clone()) {
         Ok(true) => {
-            let session_id = create_session_id();
+            let user_session = UserSession {
+                user_id: user.id,
+                session_id: create_session_id(),
+            };
+
             session
-                .set(USER_SESSION_KEY, UserSession{user_id: user.id, session_id: session_id.clone()})
+                .set(USER_SESSION_KEY, user_session.clone())
                 .expect("error set session id");
 
-            Some(session_id)
+            Ok(user_session)
         },
         _ => {
-            None
-        }
-    }
-}
-
-pub fn signin3(user: &models::User, password: &str, session: &Session) -> Result<String, Error> {
-    match verify(password, &user.password_digest.clone()) {
-        Ok(true) => {
-            let session_id = create_session_id();
-            session
-                .set(USER_SESSION_KEY, UserSession{user_id: user.id, session_id: session_id.clone()})
-                .expect("error set session id");
-
-            Ok(session_id)
-        },
-        _ => {
-            Err(error::ErrorInternalServerError("signin"))
-        }
-    }
-}
-
-pub fn signin4(user: &models::User, password: &str, session: &Session) -> impl Future<Item=String, Error=String> {
-    use futures::future::{ok, err};
-
-    match verify(password, &user.password_digest.clone()) {
-        Ok(true) => {
-            let session_id = create_session_id();
-            session
-                .set(USER_SESSION_KEY, UserSession{user_id: user.id, session_id: session_id.clone()})
-                .expect("error set session id");
-
-            ok(session_id)
-        },
-        _ => {
-            err("invalid".to_string())
+            Err(error::ErrorForbidden("Forbidden"))
         }
     }
 }

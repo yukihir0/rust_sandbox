@@ -23,3 +23,9 @@ pub struct NewUser<'a> {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UserSession {
+    pub user_id: i32,
+    pub session_id: String,
+}

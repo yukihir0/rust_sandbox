@@ -28,7 +28,12 @@ impl Handler<ReadUsers> for DbExecutor {
 
         let select_users = users
             .load::<models::User>(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error loading users"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         Ok(select_users)
     }
@@ -68,12 +73,22 @@ impl Handler<CreateUser> for DbExecutor {
         diesel::insert_into(users)
             .values(&new_user)
             .execute(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error inserting user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         let mut items = users
             .filter(name.eq(&msg.name))
             .load::<models::User>(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error loading user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         Ok(items.pop().unwrap())
     }
@@ -98,7 +113,12 @@ impl Handler<ReadUser> for DbExecutor {
         let select_user = users
             .find(msg.id)
             .first(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error select user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         Ok(select_user)
     }
@@ -133,12 +153,22 @@ impl Handler<UpdateUser> for DbExecutor {
                 updated_at.eq(Local::now().naive_local()),
             ))
             .execute(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error update user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         let update_user = users
             .find(msg.id)
             .first(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error select user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         Ok(update_user)
     }
@@ -163,11 +193,21 @@ impl Handler<DeleteUser> for DbExecutor {
         let delete_user = users
             .find(msg.id)
             .first(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error select user"))?;
-        
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
+
         diesel::delete(users.filter(id.eq(msg.id)))
             .execute(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error delete user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         Ok(delete_user)
     }
@@ -192,14 +232,19 @@ impl Handler<ReadUserByEmail> for DbExecutor {
         let select_user = users
             .filter(email.eq(msg.email))
             .first(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error select user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         Ok(select_user)
     }
 }
 
 pub struct UpdateUserSession {
-    pub email: String,
+    pub id: i32,
     pub session_id: String,
 }
 
@@ -218,18 +263,28 @@ impl Handler<UpdateUserSession> for DbExecutor {
         let digest = hash(&msg.session_id, 5).unwrap();
         
         diesel::update(users
-            .filter(email.eq(msg.email.clone())))
+            .filter(id.eq(msg.id)))
             .set((
                 session_digest.eq(digest),
                 updated_at.eq(Local::now().naive_local()),
             ))
             .execute(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error update user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         let update_user = users
-            .filter(email.eq(msg.email))
+            .filter(id.eq(msg.id))
             .first(conn)
-            .map_err(|_| error::ErrorInternalServerError("Error select user"))?;
+            .map_err(|e| {
+                match e {
+                    diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
+                    _ => error::ErrorInternalServerError("InternalServerError"),
+                }
+            })?;
 
         Ok(update_user)
     }

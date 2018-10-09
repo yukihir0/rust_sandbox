@@ -107,187 +107,23 @@ pub fn handle_create((state, session, params): (State<Context>, Session, Form<Se
         return Box::new(ok(controllers::http_redirect("/signin", 303)));
     }
 
-    let user_email =  params.user_email.clone();
-
     state
         .db
         .send(users_message::ReadUserByEmail{email: params.user_email.clone()})
         .from_err()
-
-        // !!! #1
-        /*
-        .and_then(move |res| {
-            res.map(move |user| user)
-        })
-        .and_then(move |_| {
-            Ok(controllers::http_redirect("/signin", 303))
-        })
-        .responder()
-        */
-
-        // !!! #2
-        /*
-        .and_then(move |res| {
-            res.map(move |user| user)
-        })
-        .and_then(move |user| {
-            match sessions_helper::signin2(&user, &params.user_password, &session) {
-                Some(session_id) => {
-                    state
-                        .db
-                        .send(users_message::UpdateUserSession{
-                            email: params.user_email.clone(),
-                            session_id: session_id
-                        })
-                        .from_err()
-                        .and_then(move |res| {
-                            res.map(move |user| user)
-                        })
-                        .wait();
-                },
-                None => {
-                    let flash_message = sessions_helper::FlashMessage{
-                        error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
-                    };
-
-                    sessions_helper::set_flash_message(&session, flash_message);
-                },
-            }
-
-            Ok(())
-        })
-        .and_then(move |_| {
-            Ok(controllers::http_redirect("/signin", 303))
-        })
-        .responder()
-        */
-
-        // !!! #3
-        /*
-        .and_then(move |res| {
-            res.map(move |user| user)
-        })
-        .and_then(move |user| {
-            sessions_helper::signin2(&user, &params.user_password, &session)
-                .map(move |session_id| {
-                    state
-                        .db
-                        .send(users_message::UpdateUserSession{
-                            email: params.user_email.clone(),
-                            session_id: session_id
-                        })
-                        .from_err()
-                        .and_then(move |res| {
-                            res.map(move |user| user)
-                        })
-                })
-                .or_else(|| {
-                    let flash_message = sessions_helper::FlashMessage{
-                        error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
-                    };
-
-                    sessions_helper::set_flash_message(&session, flash_message);
-                    
-                    None    
-                })
-        })
-        .and_then(move |_| {
-            Ok(controllers::http_redirect("/signin", 303))
-        })
-        .responder()
-        */
-
-        // !!! #4
-        /*
-        .and_then(move |res| {
-            res.map(move |user| user)
-        })
-        .and_then(move |user| {
-            match sessions_helper::signin3(&user, &params.user_password, &session) {
-                Ok(session_id) => {
-                    state
-                        .db
-                        .send(users_message::UpdateUserSession{
-                            email: params.user_email.clone(),
-                            session_id: session_id
-                        })
-                        .from_err()
-                        .and_then(move |res| {
-                            res.map(move |user| user)
-                        })
-                        .wait();
-                },
-                Err(_) => {
-                    let flash_message = sessions_helper::FlashMessage{
-                        error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
-                    };
-
-                    sessions_helper::set_flash_message(&session, flash_message);
-                },
-            }
-
-            Ok(())
-        })
-        .and_then(move |_| {
-            Ok(controllers::http_redirect("/signin", 303))
-        })
-        .responder()
-        */
-
-        // !!! #5
-        /*
-        .and_then(move |res| {
-            res.map(move |user| user)
-        })
-        .and_then(move |user| {
-            ok(
-                sessions_helper::signin2(&user, &params.user_password, &session)
-                    .map(move |session_id| {
-                        //session_id
-                        state
-                            .db
-                            .send(users_message::UpdateUserSession{
-                                //email: params.user_email.clone(),
-                                email: "hoge@example.com".to_string(),
-                                session_id: session_id,
-                            })
-                            .from_err()
-                            .and_then(move |res| {
-                                res.map(move |user| user)
-                            })
-                            .wait()
-                    })
-                    .or_else(|| {
-                        let flash_message = sessions_helper::FlashMessage{
-                            error_messages: vec!["メールアドレスもしくはパスワードが間違っています。".to_string()]
-                        };
-
-                        sessions_helper::set_flash_message(&session, flash_message);
-
-                        None
-                    })
-            )
-        })
-        .and_then(move |_| {
-            Ok(controllers::http_redirect("/signin", 303))
-        })
-        .responder()
-        */
-
-        // !!! #6
         .and_then(move |res| {
             // TODO Process missing user error
             res.map(move |user| user)
         })
         .and_then(move |user| {
-            match sessions_helper::signin3(&user, &params.user_password, &session) {
-                Ok(session_id) => {
+            match sessions_helper::signin(&user, &params.user_password, &session) {
+                Ok(user_session) => {
                     Either::A(
                         state
                             .db
                             .send(users_message::UpdateUserSession{
-                                email: user_email,
-                                session_id: session_id,
+                                id: user_session.user_id,
+                                session_id: user_session.session_id,
                             })
                             .from_err()
                             .and_then(move |res| {
