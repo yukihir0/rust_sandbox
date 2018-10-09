@@ -23,7 +23,7 @@ fn main() {
     sample14();
     sample15();
     sample16();
-
+    sample17();
 }
 
 fn sample01() {
@@ -348,7 +348,7 @@ fn sample16() {
         .and_then(move |value| {
             Ok(value + 1)
         })
-        .and_then(move |value| {
+        .and_then(move |_value| {
             Err("error".to_string())
         })
         .then(move |value: Result<u32, String>| {
@@ -363,4 +363,37 @@ fn sample16() {
         });
 
     assert_eq!(ret.wait(), Ok(100));
+}
+
+fn sample17() {
+    use futures::future::{err};
+    use futures::Future;
+
+    let a = err::<u32, String>("oops".to_string());
+    let ret = a
+        .and_then(|v| {
+            // skip
+            Ok(v+1)
+        }).or_else(|_v| -> Result<u32, String> {
+            // call
+            Ok(10)   
+        })
+        .or_else(|_v| -> Result<u32, String> {
+            // skip
+            Ok(20)
+        })
+        .and_then(|v| {
+            // call
+            Ok(v+1)
+        })
+        .or_else(|_v| -> Result<u32, String> { 
+            // skip
+            Ok(30)  
+        })
+        .and_then(|v| {
+            // call
+            Ok(v+2)   
+        });
+
+    assert_eq!(ret.wait(), Ok(13));
 }
