@@ -39,25 +39,21 @@ pub fn get_flash_message(session: &Session) -> FlashMessage {
     message
 }
 
-pub fn is_signined(session: &Session) -> bool {
+pub fn user_session(session: &Session) -> Result<Option<UserSession>, Error> {
     match session.get::<UserSession>(USER_SESSION_KEY) {
-        Ok(Some(_user_session)) => true,
-        _                       => false,
+        Ok(Some(user_session)) => Ok(Some(user_session)),
+        Ok(None)               => Ok(None),
+        Err(e)                 => Err(e),
     }
 }
 
-pub fn is_valid_password(password: &str, digest: &str) -> bool {
-    verify(password, digest).unwrap()
-}
-
-pub fn is_valid_session_id(session: &Session, digest: &str) -> bool {
-    match session.get::<UserSession>(USER_SESSION_KEY) {
-        Ok(Some(user_session)) => verify(&user_session.session_id, digest).unwrap(),
-        _                      => false,
+pub fn valid_session_id(user_session: &UserSession, digest: &str) -> Result<bool, Error> {
+    match verify(&user_session.session_id, digest){
+        Ok(true) => Ok(true),
+        _        => Err(error::ErrorForbidden("Forbidden")),
     } 
 }
 
-//pub fn signin(user: &User, password: &str, session: &Session) -> Result<String, Error> {
 pub fn signin(user: &User, password: &str, session: &Session) -> Result<UserSession, Error> {
     match verify(password, &user.password_digest.clone()) {
         Ok(true) => {
@@ -81,13 +77,6 @@ pub fn signin(user: &User, password: &str, session: &Session) -> Result<UserSess
 pub fn signout(session: &Session) {
     session
         .remove(USER_SESSION_KEY);
-}
-
-pub fn current_user_id(session: &Session) -> Option<i32> {
-    match session.get::<UserSession>(USER_SESSION_KEY) {
-        Ok(Some(user_session)) => Some(user_session.user_id),
-        _                      => None,
-    }
 }
 
 fn random_string(n: usize) -> String {

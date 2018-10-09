@@ -27,48 +27,49 @@ pub fn handle_new((state, session): (State<Context>, Session)) -> FutureResponse
     use futures::future::ok;
     
     let templates = state.templates.clone();
-   
-    // TODO Refarctor Me
-    if sessions_helper::is_signined(&session) {
-        match sessions_helper::current_user_id(&session) {
-            Some(user_id) => {
-                state
-                    .db
-                    .send(users_message::ReadUser{id: user_id})
-                    .from_err()
-                    .and_then(move |res| match res {
-                        Ok(user) => {
-                            if sessions_helper::is_valid_session_id(&session, &user.session_digest.clone().unwrap()) {
+  
+    match sessions_helper::user_session(&session) {
+        Ok(Some(user_session)) => {
+            state
+                .db
+                .send(users_message::ReadUser{id: user_session.user_id})
+                .from_err()
+                .and_then(move |res| match res {
+                    Ok(user) => {
+                        match sessions_helper::valid_session_id(
+                            &user_session,
+                            &user.session_digest.clone().unwrap(),
+                        ) {
+                            Ok(_) => {
                                 let mut data = Map::new();
                                 data.insert("user".to_string(), to_json(&user));
 
                                 Ok(controllers::render(templates, "sessions_delete", Some(data)))
-                            } else {
+                            },
+                            Err(_) => {
                                 Ok(controllers::http_internal_server_error())
                             }
-                        },
-                        Err(_) => {
-                            Ok(controllers::http_internal_server_error())
-                        },
-                    })
-                    .responder()
-            },
-            None => {
-                Box::new(ok(controllers::http_internal_server_error()))
-            },
-        }
-    } else {
-        let flash_message = sessions_helper::get_flash_message(&session);
+                        }
+                    },
+                    Err(_) => {
+                        Ok(controllers::http_internal_server_error())
+                    },
+                })
+                .responder()
+        },
+        _ => {
+            let flash_message = sessions_helper::get_flash_message(&session);
 
-        let mut data = Map::new();
-        data.insert(
-            "flash_message".to_string(),
-            to_json(
-                flash_message,
-            )
-        );
-    
-        Box::new(ok(controllers::render(templates, "sessions_new", Some(data))))
+            let mut data = Map::new();
+            data.insert(
+                "flash_message".to_string(),
+                to_json(
+                    flash_message,
+                )
+            );
+        
+            Box::new(ok(controllers::render(templates, "sessions_new", Some(data))))
+        },
     }
 }
 
