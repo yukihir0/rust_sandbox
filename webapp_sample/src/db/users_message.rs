@@ -71,7 +71,7 @@ impl Handler<CreateUser> for DbExecutor {
         let conn: &SqliteConnection = &self.0.get().unwrap();
 
         diesel::insert_into(users)
-            .values(&new_user)
+            .values(new_user)
             .execute(conn)
             .map_err(|e| {
                 match e {
@@ -80,9 +80,9 @@ impl Handler<CreateUser> for DbExecutor {
                 }
             })?;
 
-        let mut items = users
-            .filter(name.eq(&msg.name))
-            .load::<models::User>(conn)
+        let insert_user = users
+            .filter(email.eq(&msg.email))
+            .first(conn)
             .map_err(|e| {
                 match e {
                     diesel::result::Error::NotFound => error::ErrorNotFound("NotFound"),
@@ -90,7 +90,7 @@ impl Handler<CreateUser> for DbExecutor {
                 }
             })?;
 
-        Ok(items.pop().unwrap())
+        Ok(insert_user)
     }
 }
 
@@ -145,11 +145,12 @@ impl Handler<UpdateUser> for DbExecutor {
 
         let digest = hash(&msg.password, 5).unwrap();
         
-        diesel::update(users.find(msg.id))
+        diesel::update(users
+            .find(msg.id))
             .set((
-                name.eq(msg.name),
-                email.eq(msg.email),
-                password_digest.eq(digest),
+                name.eq(&msg.name),
+                email.eq(&msg.email),
+                password_digest.eq(&digest),
                 updated_at.eq(Local::now().naive_local()),
             ))
             .execute(conn)
@@ -200,7 +201,8 @@ impl Handler<DeleteUser> for DbExecutor {
                 }
             })?;
 
-        diesel::delete(users.filter(id.eq(msg.id)))
+        diesel::delete(users
+            .find(msg.id))
             .execute(conn)
             .map_err(|e| {
                 match e {
@@ -230,7 +232,7 @@ impl Handler<ReadUserByEmail> for DbExecutor {
         let conn: &SqliteConnection = &self.0.get().unwrap();
 
         let select_user = users
-            .filter(email.eq(msg.email))
+            .filter(email.eq(&msg.email))
             .first(conn)
             .map_err(|e| {
                 match e {
@@ -263,9 +265,9 @@ impl Handler<UpdateUserSession> for DbExecutor {
         let digest = hash(&msg.session_id, 5).unwrap();
         
         diesel::update(users
-            .filter(id.eq(msg.id)))
+            .find(msg.id))
             .set((
-                session_digest.eq(digest),
+                session_digest.eq(&digest),
                 updated_at.eq(Local::now().naive_local()),
             ))
             .execute(conn)
@@ -277,7 +279,7 @@ impl Handler<UpdateUserSession> for DbExecutor {
             })?;
 
         let update_user = users
-            .filter(id.eq(msg.id))
+            .find(msg.id)
             .first(conn)
             .map_err(|e| {
                 match e {
