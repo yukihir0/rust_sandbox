@@ -28,6 +28,7 @@ mod schema;
 mod context;
 mod controllers;
 mod helpers;
+mod middleware;
 
 use std::env;
 use std::io::Write;
@@ -47,6 +48,7 @@ use r2d2_diesel::ConnectionManager;
 
 use db::{DbExecutor};
 use context::{Context};
+use middleware::{Authenticate};
 
 fn app(context: Context) -> App<Context> {
     let mut app = App::with_state(context);
@@ -60,6 +62,10 @@ fn app(context: Context) -> App<Context> {
             CookieSessionBackend::signed(&[0; 32])
                 .secure(false)
         )
+    );
+
+    app = app.middleware(
+        Authenticate::new()
     );
 
     app = app.handler(
