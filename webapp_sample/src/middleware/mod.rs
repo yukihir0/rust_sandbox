@@ -8,11 +8,15 @@ use context::{Context};
 use helpers::{sessions_helper};
 use controllers;
 
-pub struct Authenticate;
+pub struct Authenticate {
+    exclude_path: Vec<String>
+}
 
 impl Authenticate {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(exclude_path: Vec<String>) -> Self {
+        Self {
+            exclude_path: exclude_path, 
+        }
     }
 }
 
@@ -46,7 +50,7 @@ impl Middleware<Context> for Authenticate {
             },
             _ => {
                 println!("not signin");
-                if req.path() == "/signin" {
+                if self.exclude_path.contains(&req.path().to_string()) {
                     Ok(Started::Done)
                 } else {
                     Ok(Started::Response(controllers::http_redirect("/signin", 303)))

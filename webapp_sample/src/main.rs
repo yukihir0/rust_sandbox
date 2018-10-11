@@ -64,8 +64,9 @@ fn app(context: Context) -> App<Context> {
         )
     );
 
+    let exclude_path = vec!["/signin".to_string()];
     app = app.middleware(
-        Authenticate::new()
+        Authenticate::new(exclude_path)
     );
 
     app = app.handler(
