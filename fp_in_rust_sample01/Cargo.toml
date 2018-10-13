@@ -7,4 +7,14 @@ authors = ["yukihir0 <yukihiro.cotori@gmail.com>"]
 floating-duration = "0.1.2"
 termion = "1.5.1"
 timebomb = "0.1.2"
+serde = "1.0.79"
+serde_derive = "1.0.79"
+serde_json = "1.0.32"
 
+[[bin]]
+name = "elevator"
+path = "src/main.rs"
+
+[[bin]]
+name = "analyze"
+path = "src/analyze.rs"
