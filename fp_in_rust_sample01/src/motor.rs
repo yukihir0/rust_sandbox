@@ -1,7 +1,7 @@
 extern crate floating_duration;
 use std::time::Instant;
 use floating_duration::{TimeAsFloat, TimeFormat};
-use physics::{ElevatorSpecification, ElevatorState, MotorInput, MotorController};
+use physics::{ElevatorSpecification, ElevatorState, MotorInput, SimpleMotorInput, MotorController};
 
 pub struct SimpleMotorController {
     pub esp: ElevatorSpecification
@@ -12,7 +12,7 @@ impl MotorController for SimpleMotorController {
         self.esp = esp;
     }
 
-    fn poll(&mut self, est: ElevatorState, dst: u64) -> MotorInput {
+    fn poll(&mut self, est: ElevatorState, dst: u64) -> Box<MotorInput> {
         let t = est.velocity.abs() / 1.0;
       
         let d = t * (est.velocity/2.0);
@@ -51,11 +51,11 @@ impl MotorController for SimpleMotorController {
 
         let gravity_adjusted_acceleration = target_acceleration + 9.8;
         let target_force = gravity_adjusted_acceleration * self.esp.carriage_weight;
-        let target_voltage = target_force / 8.0;
+        let target_voltage = self.esp.motor.voltage_of_force(target_force);
         if target_voltage > 0.0 {
-            MotorInput::Up { voltage: target_voltage }
+            Box::new(SimpleMotorInput::Up { voltage: target_voltage })
         } else {
-            MotorInput::Down { voltage: target_voltage.abs() }
+            Box::new(SimpleMotorInput::Down { voltage: target_voltage.abs() })
         }
     }
 }
@@ -75,7 +75,7 @@ impl MotorController for SmoothMotorController {
         self.timestamp = est.timestamp;
     }
 
-    fn poll(&mut self, est: ElevatorState, dst: u64) -> MotorInput {
+    fn poll(&mut self, est: ElevatorState, dst: u64) -> Box<MotorInput> {
         let t_accel = MAX_ACCELERATION / MAX_JERK;
         let t_veloc = MAX_VELOCITY / MAX_ACCELERATION;
       
@@ -126,13 +126,13 @@ impl MotorController for SmoothMotorController {
 
         let gravity_adjusted_acceleration = target_acceleration + 9.8;
         let target_force = gravity_adjusted_acceleration * self.esp.carriage_weight;
-        let target_voltage = target_force / 8.0;
+        let target_voltage = self.esp.motor.voltage_of_force(target_force);
         if !target_voltage.is_finite() {
-            MotorInput::Up { voltage: 0.0 }
+            Box::new(SimpleMotorInput::Up { voltage: 0.0 })
         } else if target_voltage > 0.0 {
-            MotorInput::Up { voltage: target_voltage }
+            Box::new(SimpleMotorInput::Up { voltage: target_voltage })
         } else {
-            MotorInput::Down { voltage: target_voltage.abs() }
+            Box::new(SimpleMotorInput::Down { voltage: target_voltage.abs() })
         }
     }
 }

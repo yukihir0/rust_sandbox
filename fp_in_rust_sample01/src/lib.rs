@@ -1,7 +1,8 @@
 mod physics;
 mod motor;
 
-use physics::{ElevatorSpecification, ElevatorState, MotorInput, simulate_elevator, DataRecorder, MotorController, MotorVoltage};
+use physics::{ElevatorSpecification, ElevatorState, MotorInput, SimpleMotorInput, simulate_elevator, DataRecorder, MotorController, MotorVoltage,
+              ElevatorStateClone, ElevatorSpecificationClone, Motor, SimpleMotor};
 use motor::{SmoothMotorController, SimpleMotorController};
 
 #[macro_use] extern crate serde_derive;
@@ -62,12 +63,12 @@ struct SimpleDataRecorder<'a, W: 'a + Write> {
 impl<'a, W: Write> DataRecorder for SimpleDataRecorder<'a, W> {
     fn init(&mut self, esp: ElevatorSpecification, est: ElevatorState) {
         self.esp = esp.clone();
-        self.log.write_all(serde_json::to_string(&esp).unwrap().as_bytes()).expect("write spec to log");
+        self.log.write_all(serde_json::to_string(&esp.clone().dump()).unwrap().as_bytes()).expect("write spec to log");
         self.log.write_all(b"\r\n").expect("write spec to log");
     }
    
     fn poll(&mut self, est: ElevatorState, dst: u64) {
-        let datum = (est.clone(), dst);
+        let datum = (est.clone().dump(), dst);
         self.log.write_all(serde_json::to_string(&datum).unwrap().as_bytes()).expect("write state to log");
         self.log.write_all(b"\r\n").expect("write state to log");
 
@@ -127,15 +128,16 @@ pub fn run_simulation() {
         location: 0.0,
         velocity: 0.0,
         acceleration: 0.0,
-        motor_input: MotorInput::Up {
+        motor_input: Box::new(SimpleMotorInput::Up {
             voltage: 9.8 * (120000.0 / 8.0)
-        }
+        })
     };
 
     let mut esp = ElevatorSpecification {
         floor_count: 0,
         floor_height: 0.0,
-        carriage_weight: 120000.0
+        carriage_weight: 120000.0,
+        motor: Box::new(SimpleMotor),
     };
     let mut floor_requests = Vec::new();
 
